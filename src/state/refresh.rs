@@ -415,7 +415,7 @@ pub(crate) fn clear_dead_bg_shells(
                 if process_snapshot
                     .command_lines_for_tree(&[pane_pid])
                     .iter()
-                    .map(|line| sanitize_tmux_value(line))
+                    .map(|line| normalize_ps_line(line))
                     .any(|line| ps_line_matches_cmd(&line, cmd))
                 {
                     continue;
@@ -429,6 +429,13 @@ pub(crate) fn clear_dead_bg_shells(
             }
         }
     }
+}
+
+/// Claude Code runs Bash commands as `zsh -c "... eval '<command>'"`, so each
+/// `'` inside the command appears in ps as `'"'"'`. Undo that escaping and
+/// apply the same canonicalization used when `@pane_bg_cmd` was stored.
+fn normalize_ps_line(line: &str) -> String {
+    sanitize_tmux_value(&line.replace(r#"'"'"'"#, "'"))
 }
 
 /// Token-boundary substring match against a ps `command=` line that has
@@ -684,6 +691,20 @@ mod tests {
     }
 
     // ─── ps_line_matches_cmd ────────────────────────────────────────
+
+    #[test]
+    fn normalized_claude_eval_wrapper_matches_cmd_with_single_quotes() {
+        let cmd = "grep -E '^Tests:' log | head";
+        let ps_line = r#"/bin/zsh -c source snap.sh && eval 'grep -E '"'"'^Tests:'"'"' log | head' < /dev/null && pwd -P >| /tmp/claude-1-cwd"#;
+        assert!(!ps_line_matches_cmd(
+            &sanitize_tmux_value(ps_line),
+            &sanitize_tmux_value(cmd)
+        ));
+        assert!(ps_line_matches_cmd(
+            &normalize_ps_line(ps_line),
+            &sanitize_tmux_value(cmd)
+        ));
+    }
 
     #[test]
     fn ps_line_matches_cmd_empty_cmd_never_matches() {
