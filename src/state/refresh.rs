@@ -137,7 +137,9 @@ impl AppState {
     }
 
     fn refresh_activity_data(&mut self) {
-        self.refresh_activity_log();
+        if self.activity_visible() {
+            self.refresh_activity_log();
+        }
         self.refresh_task_progress();
         self.auto_switch_tab();
     }

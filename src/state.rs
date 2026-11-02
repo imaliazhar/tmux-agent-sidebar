@@ -136,6 +136,12 @@ pub struct AppState {
     /// Whether the pet animation is drawn and ticked. Loaded once at startup
     /// from the `@sidebar_pet` tmux option. Defaults to `false`.
     pub pet_enabled: bool,
+    /// Whether the Activity tab is shown and its log read. Loaded once at
+    /// startup from the `@sidebar_activity` tmux option. Defaults to `true`.
+    pub activity_enabled: bool,
+    /// Whether the Git tab is shown and git status polled. Loaded once at
+    /// startup from the `@sidebar_git` tmux option. Defaults to `true`.
+    pub git_enabled: bool,
 }
 
 impl AppState {
@@ -183,6 +189,8 @@ impl AppState {
             bottom_panel_height: crate::ui::BOTTOM_PANEL_HEIGHT,
             sessions: SessionNamesState::new(),
             pet_enabled: false,
+            activity_enabled: true,
+            git_enabled: true,
         };
         crate::state::pet::reseed_pet_idle_motion(&mut state);
         state
@@ -962,6 +970,35 @@ mod tests {
         assert_eq!(state.bottom_tab, BottomTab::GitStatus);
         state.next_bottom_tab();
         assert_eq!(state.bottom_tab, BottomTab::Activity);
+    }
+
+    #[test]
+    fn next_bottom_tab_stays_on_git_when_activity_disabled() {
+        let mut state = AppState::new("%99".into());
+        state.activity_enabled = false;
+        state.bottom_tab = BottomTab::GitStatus;
+        state.next_bottom_tab();
+        assert_eq!(state.bottom_tab, BottomTab::GitStatus);
+        state.handle_bottom_tab_click(2);
+        assert_eq!(state.bottom_tab, BottomTab::GitStatus);
+    }
+
+    #[test]
+    fn next_bottom_tab_stays_on_activity_when_git_disabled() {
+        let mut state = AppState::new("%99".into());
+        state.git_enabled = false;
+        state.next_bottom_tab();
+        assert_eq!(state.bottom_tab, BottomTab::Activity);
+        assert!(!state.git_polling_wanted());
+    }
+
+    #[test]
+    fn git_polling_requires_visible_panel() {
+        let mut state = AppState::new("%99".into());
+        state.bottom_tab = BottomTab::GitStatus;
+        assert!(state.git_polling_wanted());
+        state.bottom_panel_height = 0;
+        assert!(!state.git_polling_wanted());
     }
 
     #[test]

@@ -51,6 +51,24 @@ pub fn pet_enabled_from_tmux() -> bool {
     pet_enabled_from_options(&opts)
 }
 
+/// Read an on/off tmux option that defaults to on. Only `off`, `false`, `0`
+/// and `no` (case-insensitive) disable it.
+pub fn toggle_from_options(opts: &HashMap<String, String>, key: &str) -> bool {
+    opts.get(key)
+        .map(|s| s.trim().to_ascii_lowercase())
+        .map(|s| !matches!(s.as_str(), "off" | "false" | "0" | "no"))
+        .unwrap_or(true)
+}
+
+/// Read `@sidebar_activity` and `@sidebar_git` from tmux global options.
+pub fn bottom_tabs_enabled_from_tmux() -> (bool, bool) {
+    let opts = crate::tmux::get_all_global_options();
+    (
+        toggle_from_options(&opts, tmux::SIDEBAR_ACTIVITY),
+        toggle_from_options(&opts, tmux::SIDEBAR_GIT),
+    )
+}
+
 // ── public entry point ──────────────────────────────────────────────
 
 pub fn draw(frame: &mut Frame, state: &mut AppState) {
@@ -132,6 +150,34 @@ mod tests {
     fn bottom_height_falls_back_on_empty_value() {
         let opts = opts_with(tmux::SIDEBAR_BOTTOM_HEIGHT, "");
         assert_eq!(bottom_panel_height_from_options(&opts), BOTTOM_PANEL_HEIGHT);
+    }
+
+    #[test]
+    fn toggle_defaults_on_when_option_missing() {
+        let opts = HashMap::new();
+        assert!(toggle_from_options(&opts, tmux::SIDEBAR_GIT));
+    }
+
+    #[test]
+    fn toggle_disabled_when_off() {
+        for value in ["off", "OFF", "false", "0", "no"] {
+            let opts = opts_with(tmux::SIDEBAR_ACTIVITY, value);
+            assert!(
+                !toggle_from_options(&opts, tmux::SIDEBAR_ACTIVITY),
+                "expected {value} to disable"
+            );
+        }
+    }
+
+    #[test]
+    fn toggle_enabled_when_on() {
+        for value in ["on", "true", "1", "yes", ""] {
+            let opts = opts_with(tmux::SIDEBAR_ACTIVITY, value);
+            assert!(
+                toggle_from_options(&opts, tmux::SIDEBAR_ACTIVITY),
+                "expected {value} to enable"
+            );
+        }
     }
 
     #[test]

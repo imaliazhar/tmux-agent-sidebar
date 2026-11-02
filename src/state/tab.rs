@@ -20,7 +20,7 @@ impl AppState {
         match self.resolve_bottom_tab(focus_changed, &new_agent_ids) {
             TabDecision::Keep => {}
             TabDecision::Set(tab) => {
-                self.bottom_tab = tab;
+                self.bottom_tab = self.coerce_tab(tab);
             }
         }
 
@@ -126,10 +126,33 @@ impl AppState {
     }
 
     pub fn next_bottom_tab(&mut self) {
-        self.bottom_tab = match self.bottom_tab {
+        let next = match self.bottom_tab {
             BottomTab::Activity => BottomTab::GitStatus,
             BottomTab::GitStatus => BottomTab::Activity,
         };
+        self.bottom_tab = self.coerce_tab(next);
+    }
+
+    /// Map a disabled tab to the other one. When both are disabled the
+    /// bottom panel is hidden, so the result is never rendered.
+    pub fn coerce_tab(&self, tab: BottomTab) -> BottomTab {
+        match tab {
+            BottomTab::Activity if !self.activity_enabled => BottomTab::GitStatus,
+            BottomTab::GitStatus if !self.git_enabled => BottomTab::Activity,
+            tab => tab,
+        }
+    }
+
+    pub fn git_visible(&self) -> bool {
+        self.git_enabled && self.bottom_panel_height > 0
+    }
+
+    pub fn activity_visible(&self) -> bool {
+        self.activity_enabled && self.bottom_panel_height > 0
+    }
+
+    pub fn git_polling_wanted(&self) -> bool {
+        self.git_visible() && self.bottom_tab == BottomTab::GitStatus
     }
 
     /// Handle mouse click on the bottom panel tab header.
@@ -140,6 +163,9 @@ impl AppState {
         // Offset by 1 for the left border character
         let x = col.saturating_sub(1) as usize;
         // " Activity " = 10 chars (0..10), "│" = 1 char (10), " Git " = 5 chars (11..16)
+        if !(self.activity_enabled && self.git_enabled) {
+            return;
+        }
         if x < 10 {
             self.bottom_tab = BottomTab::Activity;
         } else if (11..16).contains(&x) {

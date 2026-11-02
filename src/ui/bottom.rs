@@ -92,11 +92,17 @@ fn build_tab_title(state: &AppState) -> Line<'static> {
 
     let sep_style = Style::default().fg(theme.border_inactive);
 
-    Line::from(vec![
-        Span::styled("Activity", activity_style),
-        Span::styled(" \u{2502} ", sep_style),
-        Span::styled("Git", git_style),
-    ])
+    let mut spans = Vec::new();
+    if state.activity_enabled {
+        spans.push(Span::styled("Activity", activity_style));
+    }
+    if state.activity_enabled && state.git_enabled {
+        spans.push(Span::styled(" \u{2502} ", sep_style));
+    }
+    if state.git_enabled {
+        spans.push(Span::styled("Git", git_style));
+    }
+    Line::from(spans)
 }
 
 #[cfg(test)]
